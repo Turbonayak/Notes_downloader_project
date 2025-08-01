@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>About - EduNotes</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="container">
+      <div class="logo">
+        <a href="index.html">📚 EduNotes</a>
+      </div>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="notes.html">Notes</a>
+        <a href="about.html" class="active">About</a>
+      </nav>
+      <button class="login-btn" onclick="window.location.href='http://localhost:3000/login'">Login</button>
+    </div>
+  </header>
+
+  <main class="container" style="padding: 20px; max-width: 800px; margin: 40px auto;">
+    <h1>About EduNotes</h1>
+    <p>Welcome to <strong>EduNotes</strong>, your dedicated online platform for accessing quality educational notes. Our mission is to empower students by providing easy and free access to well-organized study materials across various subjects and classes.</p>
+
+    <h2>What We Offer</h2>
+    <ul>
+      <li><strong>Comprehensive Notes:</strong> Curated and detailed notes to help you understand key concepts clearly.</li>
+      <li><strong>Easy Downloads:</strong> Access and download notes anytime, from anywhere.</li>
+      <li><strong>User-Friendly Interface:</strong> Simple navigation to find notes by subject and class quickly.</li>
+      <li><strong>Admin Managed Content:</strong> Reliable uploads and updates by verified admins ensuring quality and relevance.</li>
+    </ul>
+
+    <h2>Our Vision</h2>
+    <p>We believe that education should be accessible and affordable for everyone. By building EduNotes, we aim to bridge the gap between students and valuable learning resources, helping you achieve your academic goals with ease.</p>
+
+    <h2>Contact Us</h2>
+    <p>If you have questions, suggestions, or want to contribute, feel free to reach out at <a href="mailto:support@edunotes.com">support@edunotes.com</a>.</p>
+  </main>
+
+  <footer>
+    &copy; 2025 EduNotes. All rights reserved. Made with ❤️ for learners.
+  </footer>
+
+  <script>
+    async function loadComponents() {
+      // If you want to load header/footer dynamically, make sure to have those files
+      // Otherwise, you can remove this script.
+      // document.getElementById('header').innerHTML = await fetch('header.html').then(r => r.text());
+      // document.getElementById('footer').innerHTML = await fetch('footer.html').then(r => r.text());
+    }
+    loadComponents();
+  </script>
+</body>
+</html>

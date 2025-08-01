@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EduNotes - Education Portal</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .logout-btn {
+      background: #ff5c5c;
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header Section -->
+  <header>
+    <div class="container">
+      <div class="logo">
+        <a href="index.html">📚 EduNotes</a>
+      </div>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="user.html">Notes</a>
+        <a href="about.html">About</a>
+      </nav>
+      <div id="authButtons">
+        <button class="login-btn" id="loginBtn" onclick="window.location.href='http://localhost:3000/login'">
+          Login
+        </button>
+        <button class="logout-btn" id="logoutBtn" style="display:none;" onclick="logout()">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <h1>Empower Your Learning Journey</h1>
+    <p>Download free study notes, explore subjects, and unlock your true potential.</p>
+    <a href="notes.html" class="btn-primary">Browse Notes</a>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features">
+    <div class="feature">
+      <h3>Comprehensive Notes</h3>
+      <p>Organized notes for all your subjects, carefully curated to help you understand better.</p>
+    </div>
+    <div class="feature">
+      <h3>Easy Access</h3>
+      <p>Download notes anytime, anywhere. Study on the go with mobile-friendly resources.</p>
+    </div>
+    <div class="feature">
+      <h3>Free for Everyone</h3>
+      <p>Our notes are completely free. Knowledge should be accessible to all students.</p>
+    </div>
+  </section>
+
+  <!-- Footer Section -->
+  <footer>
+    &copy; 2025 EduNotes. All rights reserved. Made with ❤️ for learners.
+  </footer>
+
+  <!-- JavaScript -->
+  <script>
+    function checkLoginStatus() {
+      const token = localStorage.getItem('token');
+      const loginBtn = document.getElementById('loginBtn');
+      const logoutBtn = document.getElementById('logoutBtn');
+
+      if (token) {
+        loginBtn.style.display = 'none';
+        logoutBtn.style.display = 'inline-block';
+      } else {
+        loginBtn.style.display = 'inline-block';
+        logoutBtn.style.display = 'none';
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      window.location.href = 'index.html';
+    }
+
+    window.onload = checkLoginStatus;
+  </script>
+
+</body>
+</html>
