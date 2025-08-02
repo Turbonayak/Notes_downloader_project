@@ -1,5 +1,4 @@
 require('dotenv').config();
-
 const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
@@ -11,33 +10,56 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 
 const app = express();
-const upload = multer({ dest: path.join(__dirname, 'uploads') });
 
-// Use your deployed frontend URL here
-const FRONTEND_URL = 'https://notes-downloader.vercel.app';
+const uploadsDir = path.join(__dirname, 'uploads');
+// Ensure uploads directory exists
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
+
+const upload = multer({ dest: uploadsDir });
 
 app.use(cors({
-  origin: FRONTEND_URL,
+  origin: 'http://localhost:5500',
   credentials: true,
 }));
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
   secret: 'keyboard cat',
   resave: false,
-  saveUninitialized: true,
+  saveUninitialized: false,
+  cookie: { secure: false, sameSite: 'lax' },
 }));
 
 app.use(passport.initialize());
 app.use(passport.session());
 
-const adminEmails = (process.env.ADMINS || '').split(',').map(email => email.trim());
+const adminEmails = (process.env.ADMINS || '').split(',').map(e => e.trim());
+
+const metadataFile = path.join(uploadsDir, 'metadata.json');
+
+function readMetadata() {
+  if (!fs.existsSync(metadataFile)) return {};
+  try {
+    const data = fs.readFileSync(metadataFile, 'utf-8');
+    return JSON.parse(data || '{}');
+  } catch (e) {
+    console.error('Failed to read metadata:', e);
+    return {};
+  }
+}
+
+function saveMetadata(metadata) {
+  fs.writeFileSync(metadataFile, JSON.stringify(metadata, null, 2));
+}
 
 function verifyToken(token) {
   try {
-    return jwt.decode(token);
-  } catch {
+    return jwt.verify(token, process.env.JWT_SECRET || 'your-secret');
+  } catch (e) {
     return null;
   }
 }
@@ -47,23 +69,24 @@ function authMiddleware(req, res, next) {
   if (!authHeader) return res.status(401).json({ message: 'No token provided' });
 
   const token = authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ message: 'Malformed token' });
-
   const payload = verifyToken(token);
-  if (!payload) return res.status(401).json({ message: 'Invalid token' });
 
-  if (!payload.email || !adminEmails.includes(payload.email)) {
-    return res.status(403).json({ message: 'Access denied: Admins only' });
-  }
+  if (!token || !payload) return res.status(403).json({ message: 'Invalid or expired token' });
 
   req.user = payload;
+  next();
+}
+
+function adminMiddleware(req, res, next) {
+  if (!adminEmails.includes(req.user.email)) {
+    return res.status(403).json({ message: 'Admins only' });
+  }
   next();
 }
 
 (async () => {
   try {
     const issuer = await Issuer.discover(process.env.DISCOVERY_URL);
-
     const client = new issuer.Client({
       client_id: process.env.CLIENT_ID,
       client_secret: process.env.CLIENT_SECRET,
@@ -71,7 +94,9 @@ function authMiddleware(req, res, next) {
       response_types: ['code'],
     });
 
-    passport.use('oidc', new Strategy({ client }, (tokenSet, userinfo, done) => done(null, userinfo)));
+    passport.use('oidc', new Strategy({ client }, (tokenSet, userinfo, done) => {
+      return done(null, userinfo);
+    }));
 
     passport.serializeUser((user, done) => done(null, user));
     passport.deserializeUser((obj, done) => done(null, obj));
@@ -81,51 +106,118 @@ function authMiddleware(req, res, next) {
     app.get('/callback', passport.authenticate('oidc', {
       failureRedirect: '/login',
     }), (req, res) => {
-      const userEmail = req.user.email;
-      if (adminEmails.includes(userEmail)) {
-        res.redirect(`${FRONTEND_URL}/admin.html`);
-      } else {
-        res.redirect(`${FRONTEND_URL}/user.html`);
-      }
+      const email = req.user.email;
+      const token = jwt.sign({ email }, process.env.JWT_SECRET || 'your-secret', { expiresIn: '1h' });
+
+      const redirectTo = adminEmails.includes(email)
+        ? ` https://notes-downloader.vercel.app/frontend/admin.html#token=${token}`
+        : ` https://notes-downloader.vercel.app/frontend/user.html#token=${token}`;
+
+      return res.redirect(redirectTo);
     });
 
     app.get('/', (req, res) => {
-      if (!req.user) return res.redirect('/login');
-      res.send(`<h1>Hello, ${req.user.name || req.user.email}</h1><p><a href="/logout">Logout</a></p>`);
+      res.send(`<h1>Welcome, ${req.user?.email || 'Guest'}</h1>`);
     });
 
     app.get('/logout', (req, res) => {
-      req.logout(() => {
-        res.redirect('/');
+      req.logout(err => {
+        if (err) return res.status(500).json({ message: 'Logout error' });
+        req.session.destroy(() => res.redirect('/'));
       });
     });
 
-    app.get('/notes', authMiddleware, (req, res) => {
-      fs.readdir(path.join(__dirname, 'uploads'), (err, files) => {
-        if (err) return res.status(500).json({ message: 'Error reading files' });
-        res.json(files);
-      });
-    });
-
-    app.post('/upload', authMiddleware, upload.single('file'), (req, res) => {
+    // Upload file (admin only) with optional description in form field
+    app.post('/upload', authMiddleware, adminMiddleware, upload.single('file'), (req, res) => {
       if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-      res.json({ message: 'File uploaded successfully', filename: req.file.filename });
+
+      const description = req.body.description || '';
+      const metadata = readMetadata();
+
+      metadata[req.file.filename] = {
+        originalName: req.file.originalname,
+        description
+      };
+
+      saveMetadata(metadata);
+
+      res.json({ message: 'File uploaded', filename: req.file.filename });
     });
 
+    // List files (any authenticated user) with metadata
+    app.get('/notes', authMiddleware, (req, res) => {
+      fs.readdir(uploadsDir, (err, files) => {
+        if (err) {
+          console.error('Failed to read uploads directory:', err);
+          return res.status(500).json({ message: 'Failed to read files' });
+        }
+
+        const metadata = readMetadata();
+        const filteredFiles = files.filter(f => f !== 'metadata.json');
+
+        const notes = filteredFiles.map(filename => ({
+          storedFilename: filename,
+          originalName: metadata[filename]?.originalName || filename,
+          description: metadata[filename]?.description || ''
+        }));
+
+        res.json(notes);
+      });
+    });
+
+    // Download file (any authenticated user) with original filename
     app.get('/download/:filename', authMiddleware, (req, res) => {
-      const filePath = path.join(__dirname, 'uploads', req.params.filename);
+      const filename = req.params.filename;
+      const filePath = path.join(uploadsDir, filename);
+
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ message: 'File not found' });
       }
-      res.download(filePath);
+
+      const metadata = readMetadata();
+      const originalName = metadata[filename]?.originalName || filename;
+
+      res.download(filePath, originalName, (err) => {
+        if (err) {
+          console.error('Download error:', err);
+          if (!res.headersSent) {
+            res.status(500).json({ message: 'Error downloading file' });
+          }
+        }
+      });
     });
 
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-      console.log(`✅ Backend running on port ${PORT}`);
+    // Delete file (admin only) and remove metadata
+    app.delete('/delete/:filename', authMiddleware, adminMiddleware, (req, res) => {
+      const filename = req.params.filename;
+      const filePath = path.join(uploadsDir, filename);
+
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ message: 'File not found' });
+      }
+
+      fs.unlink(filePath, (err) => {
+        if (err) {
+          console.error('Error deleting file:', err);
+          return res.status(500).json({ message: 'Error deleting file' });
+        }
+
+        // Remove metadata entry
+        const metadata = readMetadata();
+        if (metadata[filename]) {
+          delete metadata[filename];
+          saveMetadata(metadata);
+        }
+
+        res.json({ message: 'File deleted successfully' });
+      });
+    });
+
+    app.listen(3000, () => {
+      console.log('✅ Backend running at https://notes-downloader.onrender.com');
     });
 
   } catch (err) {
-    console.error('Error setting up OpenID client:', err);
+    console.error('❌ App ID setup failed:', err);
   }
 })();
