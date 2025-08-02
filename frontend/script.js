@@ -1,7 +1,6 @@
-// app.js
-const BACKEND_URL = "http://localhost:3000";
+const BACKEND_URL = "https://notes-downloader.onrender.com";  // Updated backend URL
 const CLIENT_ID = "7587e8c3-4899-4940-aaa8-3292e53fc544";
-const DISCOVERY_URL = "https://jp-osa.appid.cloud.ibm.com/oauth/v4/ba920c0d-1f13-4528-8aa6-dda3b2b043c9/.well-known/openid-configuration ";
+const DISCOVERY_URL = "https://jp-osa.appid.cloud.ibm.com/oauth/v4/ba920c0d-1f13-4528-8aa6-dda3b2b043c9/.well-known/openid-configuration";
 
 let appID;
 let token = localStorage.getItem('token');
@@ -13,6 +12,7 @@ async function initAppID() {
 
 async function login() {
   try {
+    await initAppID();
     const tokens = await appID.signin();
     token = tokens.idToken;
     localStorage.setItem('token', token);
@@ -24,8 +24,6 @@ async function login() {
 }
 
 async function checkAdminAccess() {
-  await initAppID();
-
   if (!token) {
     document.getElementById('loginBtn').classList.remove('hidden');
     document.getElementById('adminSection').classList.add('hidden');
@@ -33,7 +31,7 @@ async function checkAdminAccess() {
   }
 
   const userInfo = parseJwt(token);
-  if (userInfo.email && userInfo.email !== '' && userInfo.email) {
+  if (userInfo.email && userInfo.email !== '') {
     // Show admin section
     document.getElementById('loginBtn').classList.add('hidden');
     document.getElementById('adminSection').classList.remove('hidden');
@@ -52,7 +50,13 @@ async function loadNotes() {
     if (!res.ok) throw new Error('Unauthorized or error fetching notes');
     const notes = await res.json();
     const list = document.getElementById('notesList');
-    list.innerHTML = notes.map(n => `<li><a href="${BACKEND_URL}/download/${n}" target="_blank">${n}</a></li>`).join('');
+    list.innerHTML = notes.map(n => `
+      <li>
+        <a href="${BACKEND_URL}/download/${encodeURIComponent(n.storedFilename)}" target="_blank">
+          ${n.originalName || n.storedFilename}
+        </a>
+      </li>
+    `).join('');
   } catch (err) {
     alert('Failed to load notes');
     console.error(err);
@@ -60,6 +64,7 @@ async function loadNotes() {
 }
 
 document.getElementById('loginBtn').addEventListener('click', login);
+
 document.getElementById('fileUpload').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
