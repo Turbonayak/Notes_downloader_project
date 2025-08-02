@@ -1,17 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>📚 Notes - Notes Downloader</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="user.css">
-  <link rel="stylesheet" href="style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="user.css" />
+  <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/ibmcloud-appid-js/dist/appid.min.js"></script>
 </head>
 
 <body>
   <!-- <div id="header"></div> -->
-   <header>
+  <header>
     <div class="container">
       <div class="logo">
         <a href="index.html">📚 EduNotes</a>
@@ -20,9 +20,8 @@
         <a href="index.html">Home</a>
         <a href="notes.html">Notes</a>
         <a href="about.html">About</a>
-        
       </nav>
-      <button class="login-btn" onclick="window.location.href='http://localhost:3000/login'">Logout</button>
+      <button class="login-btn" onclick="window.location.href='https://notes-downloader.onrender.com/logout'">Logout</button>
     </div>
   </header>
 
@@ -39,6 +38,8 @@
 
   <script src="script.js"></script>
   <script>
+    const BACKEND_URL = 'https://notes-downloader.onrender.com';
+
     async function loadComponents() {
       document.getElementById('header').innerHTML = await fetch('header.html').then(r => r.text());
       document.getElementById('footer').innerHTML = await fetch('footer.html').then(r => r.text());
@@ -46,9 +47,19 @@
 
     async function loadNotes() {
       try {
-        const res = await fetch('http://localhost:3000/api/notes'); // Update if your route differs
+        const res = await fetch(`${BACKEND_URL}/notes`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+          }
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to fetch notes');
+        }
+
         const data = await res.json();
         const container = document.getElementById('notesList');
+        container.innerHTML = ''; // Clear container before appending
 
         if (data.length === 0) {
           container.innerHTML = "<p>No notes available at the moment.</p>";
@@ -59,17 +70,45 @@
           const card = document.createElement('div');
           card.className = 'note-card';
           card.innerHTML = `
-            <h3>${note.title}</h3>
-            <p>Subject: <strong>${note.subject}</strong></p>
-            <p>Class: <strong>${note.class}</strong></p>
-            <a href="${note.downloadUrl}" download>
-              <button>📥 Download</button>
-            </a>
+            <h3>${note.originalName || note.storedFilename}</h3>
+            <div class="note-description">${note.description || 'No description provided.'}</div>
+            <button onclick="downloadNote('${note.storedFilename}', '${note.originalName}')">📥 Download</button>
           `;
           container.appendChild(card);
         });
       } catch (err) {
         console.error('Error fetching notes:', err);
+        alert('Failed to load notes. Please login again.');
+        window.location.href = 'index.html';
+      }
+    }
+
+    async function downloadNote(storedFilename, originalName) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Please login first.');
+        window.location.href = 'index.html';
+        return;
+      }
+
+      try {
+        const response = await fetch(`${BACKEND_URL}/download/${encodeURIComponent(storedFilename)}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!response.ok) throw new Error('Download failed');
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = originalName || storedFilename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        alert('Error downloading note: ' + error.message);
       }
     }
 
