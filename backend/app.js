@@ -31,7 +31,7 @@ app.use(session({
   secret: 'keyboard cat',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false, sameSite: 'lax' },
+  cookie: { secure: false, sameSite: 'lax' }, // For production, set secure: true with HTTPS
 }));
 
 app.use(passport.initialize());
@@ -110,8 +110,8 @@ function adminMiddleware(req, res, next) {
       const token = jwt.sign({ email }, process.env.JWT_SECRET || 'your-secret', { expiresIn: '1h' });
 
       const redirectTo = adminEmails.includes(email)
-        ? ` https://notes-downloader.vercel.app/frontend/admin.html#token=${token}`
-        : ` https://notes-downloader.vercel.app/frontend/user.html#token=${token}`;
+        ? `https://notes-downloader.vercel.app/frontend/admin.html#token=${token}`
+        : `https://notes-downloader.vercel.app/frontend/user.html#token=${token}`;
 
       return res.redirect(redirectTo);
     });
